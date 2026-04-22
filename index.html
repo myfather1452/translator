@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qwen 语音翻译网页（单文件版）</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(255,255,255,0.08);
+      --panel-2: rgba(255,255,255,0.12);
+      --text: #eef2ff;
+      --muted: #b8c1ff;
+      --line: rgba(255,255,255,0.12);
+      --accent: #7c9cff;
+      --accent-2: #8b5cf6;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --shadow: 0 18px 48px rgba(0,0,0,0.35);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(124,156,255,0.22), transparent 30%),
+        radial-gradient(circle at top right, rgba(139,92,246,0.16), transparent 26%),
+        linear-gradient(180deg, #08101f 0%, #0b1020 100%);
+      color: var(--text);
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    }
+
+    body { padding: 24px; }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .hero, .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+      backdrop-filter: blur(18px);
+    }
+
+    .hero {
+      padding: 24px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(26px, 3vw, 40px);
+      line-height: 1.1;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .note {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(124,156,255,0.11);
+      border: 1px solid rgba(124,156,255,0.22);
+      color: #dbe5ff;
+      line-height: 1.6;
+    }
+
+    .card {
+      padding: 18px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1.2fr 1fr 1fr;
+      gap: 14px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    input, select, textarea, button {
+      font: inherit;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      color: var(--text);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color .2s ease, transform .15s ease, background .2s ease;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(124,156,255,0.75);
+      background: rgba(255,255,255,0.09);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+      align-items: center;
+    }
+
+    button {
+      border: 0;
+      color: white;
+      cursor: pointer;
+      border-radius: 14px;
+      padding: 12px 16px;
+      transition: transform .15s ease, opacity .2s ease, box-shadow .2s ease;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.18);
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    .primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+    .secondary { background: rgba(255,255,255,0.12); border: 1px solid var(--line); }
+    .danger { background: linear-gradient(135deg, #ef4444, #f97316); }
+    .ghost { background: rgba(255,255,255,0.08); border: 1px solid var(--line); }
+
+    .status {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      color: #e8ecff;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .pill.good { color: #bbf7d0; border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.12); }
+    .pill.warn { color: #fde68a; border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.12); }
+    .pill.bad { color: #fecaca; border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.12); }
+
+    .results {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .block {
+      display: grid;
+      gap: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      min-height: 260px;
+    }
+
+    .block h3 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .block .sub {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .audio-box {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    audio { width: 100%; }
+
+    .log {
+      margin-top: 16px;
+      max-height: 220px;
+      overflow: auto;
+      padding: 12px 14px;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      color: #dfe6ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 14px;
+    }
+
+    .side {
+      display: grid;
+      gap: 12px;
+    }
+
+    .tiny {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1024px) {
+      .grid, .results, .two-col {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>Qwen 语音翻译网页</h1>
+      <p>单文件实现：点击录音 → 自动识别语音内容 → 用 <code>qwen3.5-plus</code> 翻译 → 用 <code>qwen3-tts-vd-2026-01-26</code> 生成播报音频并自动播放。</p>
+      <div class="note">
+        说明：纯 HTML 版本不能直接读取本地 <code>.env</code>，请把 <code>DASHSCOPE_API_KEY</code> 和 <code>BASE_URL</code> 粘贴到下面的输入框中。浏览器录音需要在 <b>HTTPS</b> 或 <b>localhost</b> 环境打开。
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="grid">
+        <div class="field">
+          <label for="apiKey">DASHSCOPE_API_KEY</label>
+          <input id="apiKey" type="password" placeholder="粘贴 API Key" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="baseUrl">BASE_URL</label>
+          <input id="baseUrl" type="text" value="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+        </div>
+        <div class="field">
+          <label for="targetLang">目标语言</label>
+          <select id="targetLang">
+            <option value="zh">中文（zh）</option>
+            <option value="en">English（en）</option>
+            <option value="ja">日本語（ja）</option>
+            <option value="ko">한국어（ko）</option>
+            <option value="fr">Français（fr）</option>
+            <option value="de">Deutsch（de）</option>
+            <option value="es">Español（es）</option>
+            <option value="pt">Português（pt）</option>
+            <option value="it">Italiano（it）</option>
+            <option value="ru">Русский（ru）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="autoSpeak">播报设置</label>
+          <select id="autoSpeak">
+            <option value="yes" selected>自动播报翻译结果</option>
+            <option value="no">只翻译，不播报</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="two-col" style="margin-top: 14px;">
+        <div class="field">
+          <label for="voicePrompt">声音描述（用于 qwen3-tts-vd-2026-01-26）</label>
+          <textarea id="voicePrompt" placeholder="例如：温柔、清晰、速度适中、适合翻译播报的中文女声。">温柔清晰、吐字标准、适合翻译播报的自然女声，语速中等，听感专业但不生硬。</textarea>
+        </div>
+        <div class="side">
+          <div class="field">
+            <label for="langStatus">识别状态</label>
+            <input id="langStatus" type="text" value="等待开始录音" readonly />
+          </div>
+          <div class="field">
+            <label for="autoDetectHint">语言识别</label>
+            <input id="autoDetectHint" type="text" value="ASR 模型会自动识别语音语言" readonly />
+          </div>
+          <div class="field">
+            <label for="voiceModelHint">语音模型</label>
+            <input id="voiceModelHint" type="text" value="qwen-voice-design + qwen3-tts-vd-2026-01-26" readonly />
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button id="recordBtn" class="primary">开始录音</button>
+        <button id="stopBtn" class="danger" disabled>停止录音</button>
+        <button id="saveBtn" class="secondary">保存配置</button>
+        <button id="clearBtn" class="ghost">清空结果</button>
+      </div>
+
+      <div class="status">
+        <div id="statusText">准备就绪</div>
+        <div id="statusPill" class="pill">idle</div>
+      </div>
+
+      <div class="results">
+        <div class="block">
+          <h3>语音识别原文</h3>
+          <div class="sub">使用 <code>qwen3-asr-flash</code> 对录音进行识别，支持多语言自动识别。</div>
+          <textarea id="transcript" readonly placeholder="录音识别结果会显示在这里"></textarea>
+        </div>
+        <div class="block">
+          <h3>翻译结果</h3>
+          <div class="sub">使用 <code>qwen3.5-plus</code> 翻译成你选择的目标语言。</div>
+          <textarea id="translation" readonly placeholder="翻译结果会显示在这里"></textarea>
+        </div>
+      </div>
+
+      <div class="audio-box">
+        <div class="block" style="min-height: auto;">
+          <h3>语音播报</h3>
+          <div class="sub">翻译完成后，自动调用声音设计接口生成播报音频，并自动播放。</div>
+          <audio id="player" controls></audio>
+        </div>
+      </div>
+
+      <div class="log" id="log"></div>
+    </section>
+  </main>
+
+  <script>
+    const els = {
+      apiKey: document.getElementById('apiKey'),
+      baseUrl: document.getElementById('baseUrl'),
+      targetLang: document.getElementById('targetLang'),
+      autoSpeak: document.getElementById('autoSpeak'),
+      voicePrompt: document.getElementById('voicePrompt'),
+      langStatus: document.getElementById('langStatus'),
+      recordBtn: document.getElementById('recordBtn'),
+      stopBtn: document.getElementById('stopBtn'),
+      saveBtn: document.getElementById('saveBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      statusText: document.getElementById('statusText'),
+      statusPill: document.getElementById('statusPill'),
+      transcript: document.getElementById('transcript'),
+      translation: document.getElementById('translation'),
+      player: document.getElementById('player'),
+      log: document.getElementById('log'),
+    };
+
+    const STORE_KEY = 'qwen_voice_translate_single_html';
+    const TARGET_MAP = {
+      zh: '中文',
+      en: 'English',
+      ja: '日本語',
+      ko: '한국어',
+      fr: 'Français',
+      de: 'Deutsch',
+      es: 'Español',
+      pt: 'Português',
+      it: 'Italiano',
+      ru: 'Русский'
+    };
+
+    let mediaRecorder = null;
+    let mediaStream = null;
+    let chunks = [];
+    let isRecording = false;
+    let lastAudioDataUrl = '';
+    let lastTranscript = '';
+    let lastTranslation = '';
+
+    function log(message, level = 'info') {
+      const time = new Date().toLocaleTimeString();
+      els.log.textContent += `[${time}] ${message}\n`;
+      els.log.scrollTop = els.log.scrollHeight;
+      if (level === 'error') {
+        console.error(message);
+      } else {
+        console.log(message);
+      }
+    }
+
+    function setStatus(text, pill = 'idle', kind = '') {
+      els.statusText.textContent = text;
+      els.statusPill.textContent = pill;
+      els.statusPill.className = `pill ${kind}`.trim();
+    }
+
+    function saveConfig() {
+      const config = {
+        apiKey: els.apiKey.value.trim(),
+        baseUrl: els.baseUrl.value.trim(),
+        targetLang: els.targetLang.value,
+        autoSpeak: els.autoSpeak.value,
+        voicePrompt: els.voicePrompt.value.trim(),
+      };
+      localStorage.setItem(STORE_KEY, JSON.stringify(config));
+      setStatus('配置已保存到浏览器本地存储', 'saved', 'good');
+      log('配置已保存。');
+    }
+
+    function loadConfig() {
+      try {
+        const raw = localStorage.getItem(STORE_KEY);
+        if (!raw) return;
+        const config = JSON.parse(raw);
+        if (config.apiKey) els.apiKey.value = config.apiKey;
+        if (config.baseUrl) els.baseUrl.value = config.baseUrl;
+        if (config.targetLang) els.targetLang.value = config.targetLang;
+        if (config.autoSpeak) els.autoSpeak.value = config.autoSpeak;
+        if (config.voicePrompt) els.voicePrompt.value = config.voicePrompt;
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+
+    function normalizeBaseUrl(url) {
+      return String(url || '').trim().replace(/\/+$/, '');
+    }
+
+    function compatibleChatUrl(baseUrl) {
+      const base = normalizeBaseUrl(baseUrl);
+      if (!base) return '';
+      return `${base}/chat/completions`;
+    }
+
+    function apiRootFromBaseUrl(baseUrl) {
+      const base = normalizeBaseUrl(baseUrl);
+      return base.replace(/\/compatible-mode\/v1$/, '/api/v1');
+    }
+
+    async function postJSON(url, body, apiKey, extraHeaders = {}) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          ...extraHeaders
+        },
+        body: JSON.stringify(body)
+      });
+
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (err) {
+        throw new Error(`HTTP ${res.status}: ${text.slice(0, 400)}`);
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${JSON.stringify(data).slice(0, 500)}`);
+      }
+      return data;
+    }
+
+    function extractText(content) {
+      if (content == null) return '';
+      if (typeof content === 'string') return content;
+      if (Array.isArray(content)) {
+        return content.map(item => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item === 'object') {
+            if (typeof item.text === 'string') return item.text;
+            if (typeof item.content === 'string') return item.content;
+          }
+          return '';
+        }).join('').trim();
+      }
+      if (typeof content === 'object') {
+        return content.text || content.content || JSON.stringify(content);
+      }
+      return String(content);
+    }
+
+    function parseMaybeJSON(text) {
+      const raw = String(text || '').trim();
+      try {
+        return JSON.parse(raw);
+      } catch (err) {
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (match) {
+          try {
+            return JSON.parse(match[0]);
+          } catch (e) {
+            return null;
+          }
+        }
+      }
+      return null;
+    }
+
+    function blobToDataURL(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('读取音频失败'));
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function startRecording() {
+      if (isRecording) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert('当前浏览器不支持录音。');
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaStream = stream;
+        chunks = [];
+
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+
+        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) chunks.push(event.data);
+        };
+
+        mediaRecorder.onerror = (event) => {
+          log(`录音错误：${event.error?.message || '未知错误'}`, 'error');
+          setStatus('录音发生错误', 'error', 'bad');
+        };
+
+        mediaRecorder.onstop = async () => {
+          try {
+            const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+            const dataUrl = await blobToDataURL(blob);
+            lastAudioDataUrl = dataUrl;
+            log(`录音完成，音频大小：${Math.round(blob.size / 1024)} KB`);
+            await handleAudio(dataUrl);
+          } catch (err) {
+            setStatus('处理录音失败', 'error', 'bad');
+            log(`处理录音失败：${err.message}`, 'error');
+          } finally {
+            if (mediaStream) {
+              mediaStream.getTracks().forEach(track => track.stop());
+              mediaStream = null;
+            }
+            mediaRecorder = null;
+            isRecording = false;
+            els.recordBtn.disabled = false;
+            els.stopBtn.disabled = true;
+            els.recordBtn.textContent = '开始录音';
+          }
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        els.recordBtn.disabled = true;
+        els.stopBtn.disabled = false;
+        els.recordBtn.textContent = '录音中...';
+        setStatus('正在录音，请说话', 'recording', 'warn');
+        log('开始录音。');
+      } catch (err) {
+        setStatus('无法访问麦克风', 'error', 'bad');
+        log(`无法访问麦克风：${err.message}`, 'error');
+      }
+    }
+
+    function stopRecording() {
+      if (!isRecording || !mediaRecorder) return;
+      setStatus('录音结束，正在整理音频', 'processing', 'warn');
+      log('停止录音。');
+      mediaRecorder.stop();
+    }
+
+    async function handleAudio(audioDataUrl) {
+      const apiKey = els.apiKey.value.trim();
+      const baseUrl = normalizeBaseUrl(els.baseUrl.value);
+      const targetLang = els.targetLang.value;
+      const targetLangLabel = TARGET_MAP[targetLang] || targetLang;
+      const voicePrompt = els.voicePrompt.value.trim();
+      const autoSpeak = els.autoSpeak.value === 'yes';
+
+      if (!apiKey) {
+        setStatus('缺少 API Key', 'error', 'bad');
+        throw new Error('请先填写 DASHSCOPE_API_KEY');
+      }
+      if (!baseUrl) {
+        setStatus('缺少 BASE_URL', 'error', 'bad');
+        throw new Error('请先填写 BASE_URL');
+      }
+
+      const chatUrl = compatibleChatUrl(baseUrl);
+      const apiRoot = apiRootFromBaseUrl(baseUrl);
+
+      setStatus('正在识别语音内容...', 'asr', 'warn');
+      log('开始调用 ASR。');
+
+      const asrBody = {
+        model: 'qwen3-asr-flash',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: audioDataUrl
+                }
+              }
+            ]
+          }
+        ],
+        stream: false,
+        asr_options: {
+          enable_itn: false
+        }
+      };
+
+      const asrData = await postJSON(chatUrl, asrBody, apiKey);
+      const asrChoice = asrData?.choices?.[0];
+      const transcript = extractText(asrChoice?.message?.content || asrChoice?.delta?.content);
+      lastTranscript = transcript;
+      els.transcript.value = transcript || '(未识别到内容)';
+      log(`识别结果：${transcript || '[空]'}`);
+
+      if (!transcript) {
+        setStatus('没有识别到有效语音', 'warn', 'warn');
+        return;
+      }
+
+      setStatus(`正在翻译为 ${targetLangLabel}...`, 'translate', 'warn');
+      log('开始调用翻译模型 qwen3.5-plus。');
+
+      const translateBody = {
+        model: 'qwen3.5-plus',
+        messages: [
+          {
+            role: 'system',
+            content: '你是一个专业翻译助手。请严格只输出 JSON，不要输出多余解释。JSON 格式必须为：{"source_language":"语言名称或代码","translated_text":"翻译后的文本"}。'
+          },
+          {
+            role: 'user',
+            content: `请把下面的语音识别文本翻译为【${targetLangLabel}】。\n\n原文：\n${transcript}`
+          }
+        ],
+        temperature: 0.2
+      };
+
+      const translateData = await postJSON(chatUrl, translateBody, apiKey);
+      const translateChoice = translateData?.choices?.[0];
+      const translateText = extractText(translateChoice?.message?.content || translateChoice?.delta?.content);
+      const parsed = parseMaybeJSON(translateText);
+
+      const sourceLanguage = parsed?.source_language || '自动识别';
+      const translatedText = parsed?.translated_text || translateText || '(未生成翻译)';
+      lastTranslation = translatedText;
+      els.translation.value = translatedText;
+      els.langStatus.value = `源语言：${sourceLanguage} ｜ 目标语言：${targetLangLabel}`;
+      log(`翻译完成。源语言：${sourceLanguage}`);
+
+      if (!autoSpeak) {
+        setStatus('翻译完成，未开启自动播报', 'done', 'good');
+        return;
+      }
+
+      setStatus('正在生成播报语音...', 'tts', 'warn');
+      log('开始调用声音设计接口 qwen-voice-design + qwen3-tts-vd-2026-01-26。');
+
+      const ttsBody = {
+        model: 'qwen-voice-design',
+        input: {
+          action: 'create',
+          target_model: 'qwen3-tts-vd-2026-01-26',
+          voice_prompt: voicePrompt || '温柔清晰、吐字标准、适合翻译播报的自然女声，语速中等，听感专业但不生硬。',
+          preview_text: translatedText.slice(0, 1024),
+          preferred_name: `web_demo_${Date.now()}`.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 16),
+          language: targetLang
+        },
+        parameters: {
+          sample_rate: 24000,
+          response_format: 'wav'
+        }
+      };
+
+      const ttsUrl = `${apiRoot}/services/audio/tts/customization`;
+      const ttsData = await postJSON(ttsUrl, ttsBody, apiKey);
+      const previewAudio = ttsData?.output?.preview_audio?.data
+        || ttsData?.output?.preview_audio?.base64
+        || ttsData?.output?.audio?.data
+        || '';
+
+      if (!previewAudio) {
+        throw new Error(`TTS 返回中没有找到音频数据：${JSON.stringify(ttsData).slice(0, 500)}`);
+      }
+
+      els.player.src = `data:audio/wav;base64,${previewAudio}`;
+      setStatus('播报语音已生成，正在播放', 'spoken', 'good');
+      try {
+        await els.player.play();
+      } catch (err) {
+        log(`自动播放可能被浏览器拦截，请点击播放器播放：${err.message}`, 'warn');
+      }
+      log('语音播报完成。');
+    }
+
+    function clearAll() {
+      els.transcript.value = '';
+      els.translation.value = '';
+      els.player.removeAttribute('src');
+      els.player.load();
+      els.langStatus.value = '等待开始录音';
+      lastAudioDataUrl = '';
+      lastTranscript = '';
+      lastTranslation = '';
+      setStatus('已清空', 'idle');
+      log('内容已清空。');
+    }
+
+    els.recordBtn.addEventListener('click', async () => {
+      if (!isRecording) {
+        await startRecording();
+      }
+    });
+
+    els.stopBtn.addEventListener('click', () => {
+      stopRecording();
+    });
+
+    els.saveBtn.addEventListener('click', () => saveConfig());
+    els.clearBtn.addEventListener('click', () => clearAll());
+
+    window.addEventListener('beforeunload', () => {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+    });
+
+    loadConfig();
+    setStatus('准备就绪', 'idle');
+    log('页面已加载。');
+    log('录音 → qwen3-asr-flash → qwen3.5-plus → qwen3-tts-vd-2026-01-26。');
+  </script>
+</body>
+</html>
