@@ -359,19 +359,25 @@
   </main>
 
   <script>
-    if (!window.isSecureContext) {
-  document.getElementById('statusText').textContent =
-    '当前页面不是 HTTPS/localhost，麦克风不可用';
-  document.getElementById('statusPill').textContent = 'error';
-  document.getElementById('statusPill').className = 'pill bad';
-}
+  function showMicHint(text) {
+    const statusText = document.getElementById('statusText');
+    const statusPill = document.getElementById('statusPill');
+    if (statusText) statusText.textContent = text;
+    if (statusPill) {
+      statusPill.textContent = 'error';
+      statusPill.className = 'pill bad';
+    }
+  }
 
-if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-  document.getElementById('statusText').textContent =
-    '当前环境不支持麦克风接口';
-  document.getElementById('statusPill').textContent = 'error';
-  document.getElementById('statusPill').className = 'pill bad';
-}
+  if (!window.isSecureContext) {
+    showMicHint('当前页面不是 secure context，麦克风不可用');
+    console.warn('Not secure context');
+  }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showMicHint('当前环境不支持 getUserMedia');
+    console.warn('getUserMedia unavailable');
+  }
     const els = {
       apiKey: document.getElementById('apiKey'),
       baseUrl: document.getElementById('baseUrl'),
@@ -542,68 +548,88 @@ if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       });
     }
 
-    async function startRecording() {
-      if (isRecording) return;
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert('当前浏览器不支持录音。');
-        return;
-      }
+async function startRecording() {
+  if (isRecording) return;
 
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus('当前环境不支持麦克风', 'error', 'bad');
+    log('getUserMedia 不可用', 'error');
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    });
+
+    mediaStream = stream;
+    chunks = [];
+
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) chunks.push(event.data);
+    };
+
+    mediaRecorder.onerror = (event) => {
+      const msg = event.error?.name || event.error?.message || '未知录音错误';
+      setStatus(`录音错误：${msg}`, 'error', 'bad');
+      log(`录音错误：${msg}`, 'error');
+    };
+
+    mediaRecorder.onstop = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaStream = stream;
-        chunks = [];
-
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
-
-        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) chunks.push(event.data);
-        };
-
-        mediaRecorder.onerror = (event) => {
-          log(`录音错误：${event.error?.message || '未知错误'}`, 'error');
-          setStatus('录音发生错误', 'error', 'bad');
-        };
-
-        mediaRecorder.onstop = async () => {
-          try {
-            const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-            const dataUrl = await blobToDataURL(blob);
-            lastAudioDataUrl = dataUrl;
-            log(`录音完成，音频大小：${Math.round(blob.size / 1024)} KB`);
-            await handleAudio(dataUrl);
-          } catch (err) {
-            setStatus('处理录音失败', 'error', 'bad');
-            log(`处理录音失败：${err.message}`, 'error');
-          } finally {
-            if (mediaStream) {
-              mediaStream.getTracks().forEach(track => track.stop());
-              mediaStream = null;
-            }
-            mediaRecorder = null;
-            isRecording = false;
-            els.recordBtn.disabled = false;
-            els.stopBtn.disabled = true;
-            els.recordBtn.textContent = '开始录音';
-          }
-        };
-
-        mediaRecorder.start();
-        isRecording = true;
-        els.recordBtn.disabled = true;
-        els.stopBtn.disabled = false;
-        els.recordBtn.textContent = '录音中...';
-        setStatus('正在录音，请说话', 'recording', 'warn');
-        log('开始录音。');
+        const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        const dataUrl = await blobToDataURL(blob);
+        lastAudioDataUrl = dataUrl;
+        log(`录音完成，大小 ${Math.round(blob.size / 1024)} KB`);
+        await handleAudio(dataUrl);
       } catch (err) {
-        setStatus('无法访问麦克风', 'error', 'bad');
-        log(`无法访问麦克风：${err.message}`, 'error');
+        const msg = err?.message || String(err);
+        setStatus('处理录音失败', 'error', 'bad');
+        log(`处理录音失败：${msg}`, 'error');
+      } finally {
+        if (mediaStream) {
+          mediaStream.getTracks().forEach(track => track.stop());
+          mediaStream = null;
+        }
+        mediaRecorder = null;
+        isRecording = false;
+        els.recordBtn.disabled = false;
+        els.stopBtn.disabled = true;
+        els.recordBtn.textContent = '开始录音';
       }
-    }
+    };
+
+    mediaRecorder.start();
+    isRecording = true;
+    els.recordBtn.disabled = true;
+    els.stopBtn.disabled = false;
+    els.recordBtn.textContent = '录音中...';
+    setStatus('正在录音，请说话', 'recording', 'warn');
+    log('开始录音。');
+  } catch (err) {
+    const name = err?.name || 'Error';
+    const msg = err?.message || String(err);
+
+    let friendly = msg;
+    if (name === 'NotAllowedError') friendly = '浏览器或系统拒绝了麦克风权限';
+    if (name === 'NotFoundError') friendly = '没有找到麦克风设备';
+    if (name === 'NotReadableError') friendly = '麦克风被占用或无法读取';
+    if (name === 'SecurityError') friendly = '当前页面不是安全上下文，或者被权限策略阻止';
+
+    setStatus(`无法访问麦克风：${friendly}`, 'error', 'bad');
+    log(`无法访问麦克风：${name} / ${msg}`, 'error');
+  }
+}
 
     function stopRecording() {
       if (!isRecording || !mediaRecorder) return;
