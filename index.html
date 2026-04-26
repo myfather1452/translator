@@ -359,6 +359,19 @@
   </main>
 
   <script>
+    if (!window.isSecureContext) {
+  document.getElementById('statusText').textContent =
+    '当前页面不是 HTTPS/localhost，麦克风不可用';
+  document.getElementById('statusPill').textContent = 'error';
+  document.getElementById('statusPill').className = 'pill bad';
+}
+
+if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+  document.getElementById('statusText').textContent =
+    '当前环境不支持麦克风接口';
+  document.getElementById('statusPill').textContent = 'error';
+  document.getElementById('statusPill').className = 'pill bad';
+}
     const els = {
       apiKey: document.getElementById('apiKey'),
       baseUrl: document.getElementById('baseUrl'),
